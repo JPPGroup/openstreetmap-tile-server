@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "osmts.fullname" . }}
+  labels:
+    app: {{ template "osmts.name" . }}
+    chart: {{ template "osmts.chart" . }}
+    draft: {{ default "draft-app" .Values.draft }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ template "osmts.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "osmts.name" . }}
+        draft: {{ default "draft-app" .Values.draft }}
+        release: {{ .Release.Name }}
+    spec:
+      volumes:
+      - name: {{ template "osmts.fullname" . }}-data
+        persistentVolumeClaim:
+          claimName: {{ template "osmts.fullname" . }}-datapvc
+      - name: {{ template "osmts.fullname" . }}-tiles
+        persistentVolumeClaim:
+          claimName: {{ template "osmts.fullname" . }}-tilespvc  
+      initContainers:
+        - name: "{{ .Chart.Name }}-init"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"          
+          imagePullPolicy: {{ .Values.image.pullPolicy }}          
+          args: ["import"]
+          env:                 
+            {{- if .Values.osm.automaticUpdates }}
+            - name: UPDATES
+              value: enabled
+            {{- end }}            
+            {{- if .Values.osm.data.download }}
+            - name: DOWNLOAD_PBF
+              value: {{ .Values.osm.data.pbfUrl }}
+            - name: DOWNLOAD_POLY
+              value: {{ .Values.osm.data.polyUrl }}
+            {{- end }}            
+          volumeMounts:
+          - mountPath: "/var/lib/postgresql/12/main"
+            name: {{ template "osmts.fullname" . }}-data
+    {{- with .Values.resources }}
+      resources:      
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"          
+          imagePullPolicy: {{ .Values.image.pullPolicy }}          
+          args: ["run"]
+          env:                 
+            {{- if .Values.osm.automaticUpdates }}
+            - name: UPDATES
+              value: enabled
+            {{- end }}                                  
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+          - mountPath: "/var/lib/postgresql/12/main"
+            name: {{ template "osmts.fullname" . }}-data
+          - mountPath: "/var/lib/mod_tile"
+            name: {{ template "osmts.fullname" . }}-tiles
+    {{- with .Values.resources }}
+      resources:      
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
